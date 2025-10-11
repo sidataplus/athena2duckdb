@@ -1,0 +1,24 @@
+[project]
+name = "athena2duckdb"
+version = "0.1.0"
+description = "Load OMOP Athena vocabulary exports into DuckDB"
+readme = "README.md"
+authors = [
+    { name = "Max Natthawut Adulyanukosol", email = "natthawut.adu@mahidol.ac.th" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "duckdb>=1.4.1",
+]
+
+[project.scripts]
+athena2duckdb = "athena2duckdb.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
