@@ -1,0 +1,58 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Validate tag matches project version
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          if not tag.startswith("v"):
+              raise SystemExit(f"Tag must start with 'v': {tag}")
+
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          expected = f"v{version}"
+          if tag != expected:
+              raise SystemExit(
+                  f"Tag/version mismatch: tag={tag}, pyproject version={version}. "
+                  f"Expected {expected}."
+              )
+
+          print(f"Tag {tag} matches project version {version}.")
+          PY
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Verify distribution metadata
+        run: uv run --with twine twine check dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist

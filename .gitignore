@@ -14,3 +14,7 @@ data/*
 
 # Outputs
 *.duckdb
+
+# Temp files
+temp/*
+!temp/.gitkeep
