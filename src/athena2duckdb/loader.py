@@ -294,9 +294,10 @@ def _create_table_if_missing(
         pk = ", ".join(_escape_identifier(col) for col in definition.primary_key)
         columns_sql.append(f"PRIMARY KEY ({pk})")
 
+    columns_block = ",\n    ".join(columns_sql)
     statement = (
         f"CREATE TABLE IF NOT EXISTS {qualified} (\n"
-        f"    {',\n    '.join(columns_sql)}\n"
+        f"    {columns_block}\n"
         ")"
     )
 

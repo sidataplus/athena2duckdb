@@ -2,7 +2,13 @@ from pathlib import Path
 
 import duckdb
 
-from athena2duckdb.loader import CSVOptions, load_vocab_dir, verify_row_counts
+from athena2duckdb.loader import (
+    CSVOptions,
+    _create_table_if_missing,
+    load_vocab_dir,
+    verify_row_counts,
+)
+from athena2duckdb.schema import TABLE_DEFINITIONS
 
 
 def test_load_and_verify_row_counts(tmp_path: Path) -> None:
@@ -51,3 +57,17 @@ def test_load_and_verify_row_counts(tmp_path: Path) -> None:
     type_mapping = {row[1]: row[2] for row in info}
     assert type_mapping["concept_id"].upper() == "INTEGER"
     assert type_mapping["concept_name"].upper().startswith("VARCHAR")
+
+
+def test_create_table_if_missing_is_idempotent_for_typed_table() -> None:
+    conn = duckdb.connect(":memory:")
+    try:
+        definition = TABLE_DEFINITIONS["concept"]
+        _create_table_if_missing(conn, definition, "main")
+        _create_table_if_missing(conn, definition, "main")
+        info = conn.execute("PRAGMA table_info('main.concept')").fetchall()
+    finally:
+        conn.close()
+
+    primary_key_columns = [row[1] for row in info if row[5] > 0]
+    assert primary_key_columns == ["concept_id"]
