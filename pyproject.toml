@@ -1,6 +1,6 @@
 [project]
 name = "athena2duckdb"
-version = "0.1.0"
+version = "0.1.1"
 description = "Load OMOP Athena vocabulary exports into DuckDB"
 readme = "README.md"
 license = { file = "LICENSE" }

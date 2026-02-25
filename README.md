@@ -18,7 +18,15 @@ and skips auxiliary exports like `CONCEPT_CPT4.csv` or `README.txt` by default.
 - Always performs row-count verification to ensure the database matches source
   files.
 
-### Installation (local)
+### Installation
+
+From PyPI:
+
+```bash
+pip install athena2duckdb
+```
+
+For local development:
 
 ```bash
 uv sync
@@ -34,7 +42,7 @@ pip install dist/athena2duckdb-*.whl
 ### CLI Usage
 
 ```bash
-uv run athena2duckdb /path/to/athena-export -o vocab.duckdb --verbose
+uv run athena2duckdb /path/to/athena-export --verbose
 ```
 
 Arguments:
@@ -42,7 +50,7 @@ Arguments:
 | Flag | Description |
 |------|-------------|
 | `input_dir` | Directory that contains the Athena CSV/TSV files. |
-| `-o, --out` | Output DuckDB database file (default `vocab.duckdb`). |
+| `-o, --out` | Output DuckDB database file (default `omop_vocab.duckdb`). |
 | `--sep` | Field delimiter (default tab). |
 | `--encoding` | Source file encoding (default `UTF-8`). |
 | `--threads` | Number of DuckDB threads to use. |
@@ -53,13 +61,13 @@ Arguments:
 ### Example
 
 ```bash
-uv run athena2duckdb data/ -o vocab.duckdb
+uv run athena2duckdb data/
 ```
 
 Sample output:
 
 ```
-Loaded 10 tables into vocab.duckdb.
+Loaded 10 tables into omop_vocab.duckdb.
 Tables: concept, concept_ancestor, concept_class, concept_relationship, concept_synonym,
 domain, drug_strength, source_to_concept_map, relationship, vocabulary
 OK        table=concept                  csv_rows=93,547 table_rows=93,547
@@ -72,7 +80,7 @@ OK        table=concept                  csv_rows=93,547 table_rows=93,547
 from pathlib import Path
 from athena2duckdb import CSVOptions, load_vocab_dir, verify_row_counts
 
-summary = load_vocab_dir(Path("data"), Path("vocab.duckdb"), schema="cdm")
+summary = load_vocab_dir(Path("data"), Path("omop_vocab.duckdb"), schema="cdm")
 results = verify_row_counts(summary.db_path, summary.vocab_files, schema=summary.schema)
 ```
 
@@ -81,6 +89,10 @@ results = verify_row_counts(summary.db_path, summary.vocab_files, schema=summary
 ```bash
 uv run pytest
 ```
+
+### Releasing
+
+See [RELEASING.md](RELEASING.md).
 
 ### License
 
