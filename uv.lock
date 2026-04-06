@@ -3,7 +3,7 @@ requires-python = ">=3.9"
 
 [[package]]
 name = "athena2duckdb"
-version = "0.1.0"
+version = "0.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
