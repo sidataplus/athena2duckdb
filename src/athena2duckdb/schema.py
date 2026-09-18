@@ -20,11 +20,28 @@ class IndexDefinition:
 
 
 @dataclass(frozen=True)
+class ForeignKeyDefinition:
+    """Semantic foreign-key metadata from the OMOP field-level specification.
+
+    Athena vocabulary exports can contain references to concepts that are not
+    included in the same download. DuckDB also cannot add foreign keys after
+    table creation, which prevents installing the circular vocabulary
+    relationships as physical constraints. The loader therefore retains this
+    metadata without enforcing it.
+    """
+
+    columns: Sequence[str]
+    referenced_table: str
+    referenced_columns: Sequence[str]
+
+
+@dataclass(frozen=True)
 class TableDefinition:
     name: str
     columns: Sequence[ColumnDefinition]
     primary_key: Sequence[str] | None = None
     indexes: Sequence[IndexDefinition] = ()
+    foreign_keys: Sequence[ForeignKeyDefinition] = ()
 
 
 TABLE_DEFINITIONS: dict[str, TableDefinition] = {
@@ -43,6 +60,13 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
             ColumnDefinition("invalid_reason", "VARCHAR(1)", True),
         ),
         primary_key=("concept_id",),
+        foreign_keys=(
+            ForeignKeyDefinition(("domain_id",), "domain", ("domain_id",)),
+            ForeignKeyDefinition(("vocabulary_id",), "vocabulary", ("vocabulary_id",)),
+            ForeignKeyDefinition(
+                ("concept_class_id",), "concept_class", ("concept_class_id",)
+            ),
+        ),
         indexes=(
             IndexDefinition("idx_concept_concept_id", ("concept_id",)),
             IndexDefinition("idx_concept_code", ("concept_code",)),
@@ -60,7 +84,11 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
             ColumnDefinition("vocabulary_version", "VARCHAR(255)", True),
             ColumnDefinition("vocabulary_concept_id", "INTEGER", False),
         ),
-        primary_key=("vocabulary_id",),
+        foreign_keys=(
+            ForeignKeyDefinition(
+                ("vocabulary_concept_id",), "concept", ("concept_id",)
+            ),
+        ),
         indexes=(
             IndexDefinition("idx_vocabulary_vocabulary_id", ("vocabulary_id",)),
         ),
@@ -73,6 +101,9 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
             ColumnDefinition("domain_concept_id", "INTEGER", False),
         ),
         primary_key=("domain_id",),
+        foreign_keys=(
+            ForeignKeyDefinition(("domain_concept_id",), "concept", ("concept_id",)),
+        ),
         indexes=(
             IndexDefinition("idx_domain_domain_id", ("domain_id",)),
         ),
@@ -85,6 +116,11 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
             ColumnDefinition("concept_class_concept_id", "INTEGER", False),
         ),
         primary_key=("concept_class_id",),
+        foreign_keys=(
+            ForeignKeyDefinition(
+                ("concept_class_concept_id",), "concept", ("concept_id",)
+            ),
+        ),
         indexes=(
             IndexDefinition("idx_concept_class_class_id", ("concept_class_id",)),
         ),
@@ -98,6 +134,13 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
             ColumnDefinition("valid_start_date", "DATE", False),
             ColumnDefinition("valid_end_date", "DATE", False),
             ColumnDefinition("invalid_reason", "VARCHAR(1)", True),
+        ),
+        foreign_keys=(
+            ForeignKeyDefinition(("concept_id_1",), "concept", ("concept_id",)),
+            ForeignKeyDefinition(("concept_id_2",), "concept", ("concept_id",)),
+            ForeignKeyDefinition(
+                ("relationship_id",), "relationship", ("relationship_id",)
+            ),
         ),
         indexes=(
             IndexDefinition("idx_concept_relationship_id_1", ("concept_id_1",)),
@@ -116,6 +159,11 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
             ColumnDefinition("relationship_concept_id", "INTEGER", False),
         ),
         primary_key=("relationship_id",),
+        foreign_keys=(
+            ForeignKeyDefinition(
+                ("relationship_concept_id",), "concept", ("concept_id",)
+            ),
+        ),
         indexes=(
             IndexDefinition("idx_relationship_rel_id", ("relationship_id",)),
         ),
@@ -126,6 +174,12 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
             ColumnDefinition("concept_id", "INTEGER", False),
             ColumnDefinition("concept_synonym_name", "VARCHAR(1000)", False),
             ColumnDefinition("language_concept_id", "INTEGER", False),
+        ),
+        foreign_keys=(
+            ForeignKeyDefinition(("concept_id",), "concept", ("concept_id",)),
+            ForeignKeyDefinition(
+                ("language_concept_id",), "concept", ("concept_id",)
+            ),
         ),
         indexes=(
             IndexDefinition("idx_concept_synonym_id", ("concept_id",)),
@@ -138,6 +192,14 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
             ColumnDefinition("descendant_concept_id", "INTEGER", False),
             ColumnDefinition("min_levels_of_separation", "INTEGER", False),
             ColumnDefinition("max_levels_of_separation", "INTEGER", False),
+        ),
+        foreign_keys=(
+            ForeignKeyDefinition(
+                ("ancestor_concept_id",), "concept", ("concept_id",)
+            ),
+            ForeignKeyDefinition(
+                ("descendant_concept_id",), "concept", ("concept_id",)
+            ),
         ),
         indexes=(
             IndexDefinition("idx_concept_ancestor_id_1", ("ancestor_concept_id",)),
@@ -157,6 +219,17 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
             ColumnDefinition("valid_end_date", "DATE", False),
             ColumnDefinition("invalid_reason", "VARCHAR(1)", True),
         ),
+        foreign_keys=(
+            ForeignKeyDefinition(
+                ("source_concept_id",), "concept", ("concept_id",)
+            ),
+            ForeignKeyDefinition(
+                ("target_concept_id",), "concept", ("concept_id",)
+            ),
+            ForeignKeyDefinition(
+                ("target_vocabulary_id",), "vocabulary", ("vocabulary_id",)
+            ),
+        ),
         indexes=(
             IndexDefinition("idx_source_to_concept_map_3", ("target_concept_id",)),
             IndexDefinition("idx_source_to_concept_map_1", ("source_vocabulary_id",)),
@@ -169,16 +242,31 @@ TABLE_DEFINITIONS: dict[str, TableDefinition] = {
         columns=(
             ColumnDefinition("drug_concept_id", "INTEGER", False),
             ColumnDefinition("ingredient_concept_id", "INTEGER", False),
-            ColumnDefinition("amount_value", "NUMERIC", True),
+            ColumnDefinition("amount_value", "DOUBLE", True),
             ColumnDefinition("amount_unit_concept_id", "INTEGER", True),
-            ColumnDefinition("numerator_value", "DECIMAL(38,16)", True),
+            ColumnDefinition("numerator_value", "DOUBLE", True),
             ColumnDefinition("numerator_unit_concept_id", "INTEGER", True),
-            ColumnDefinition("denominator_value", "NUMERIC", True),
+            ColumnDefinition("denominator_value", "DOUBLE", True),
             ColumnDefinition("denominator_unit_concept_id", "INTEGER", True),
             ColumnDefinition("box_size", "INTEGER", True),
             ColumnDefinition("valid_start_date", "DATE", False),
             ColumnDefinition("valid_end_date", "DATE", False),
             ColumnDefinition("invalid_reason", "VARCHAR(1)", True),
+        ),
+        foreign_keys=(
+            ForeignKeyDefinition(("drug_concept_id",), "concept", ("concept_id",)),
+            ForeignKeyDefinition(
+                ("ingredient_concept_id",), "concept", ("concept_id",)
+            ),
+            ForeignKeyDefinition(
+                ("amount_unit_concept_id",), "concept", ("concept_id",)
+            ),
+            ForeignKeyDefinition(
+                ("numerator_unit_concept_id",), "concept", ("concept_id",)
+            ),
+            ForeignKeyDefinition(
+                ("denominator_unit_concept_id",), "concept", ("concept_id",)
+            ),
         ),
         indexes=(
             IndexDefinition("idx_drug_strength_id_1", ("drug_concept_id",)),

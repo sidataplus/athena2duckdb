@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+import re
 from typing import Callable, Iterable, Sequence
 
 import duckdb
@@ -13,6 +14,8 @@ from .schema import TABLE_DEFINITIONS, ColumnDefinition, IndexDefinition, TableD
 from .tables import VocabFile, discover_vocab_files
 
 LOGGER = logging.getLogger(__name__)
+
+VARCHAR_LENGTH_PATTERN = re.compile(r"^VARCHAR\((\d+)\)$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -311,6 +314,12 @@ def _column_sql(column: ColumnDefinition) -> str:
     ]
     if not column.nullable:
         parts.append("NOT NULL")
+    varchar_length = VARCHAR_LENGTH_PATTERN.fullmatch(column.data_type)
+    if varchar_length is not None:
+        identifier = _escape_identifier(column.name)
+        parts.append(
+            f"CHECK (length({identifier}) <= {int(varchar_length.group(1))})"
+        )
     return " ".join(parts)
 
 

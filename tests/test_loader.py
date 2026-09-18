@@ -2,14 +2,16 @@ from pathlib import Path
 import datetime as dt
 
 import duckdb
+import pytest
 
 from athena2duckdb.loader import (
     CSVOptions,
+    _column_sql,
     _create_table_if_missing,
     load_vocab_dir,
     verify_row_counts,
 )
-from athena2duckdb.schema import TABLE_DEFINITIONS
+from athena2duckdb.schema import TABLE_DEFINITIONS, ColumnDefinition
 
 
 def test_load_and_verify_row_counts(tmp_path: Path) -> None:
@@ -88,7 +90,7 @@ def test_create_table_if_missing_is_idempotent_for_typed_table() -> None:
     assert primary_key_columns == ["concept_id"]
 
 
-def test_schema_includes_all_vocab_tables_and_overflow_safe_numerator() -> None:
+def test_schema_includes_all_vocab_tables_and_omop_float_columns() -> None:
     expected_vocab_tables = {
         "concept",
         "vocabulary",
@@ -106,7 +108,80 @@ def test_schema_includes_all_vocab_tables_and_overflow_safe_numerator() -> None:
 
     drug_strength = TABLE_DEFINITIONS["drug_strength"]
     col_types = {column.name: column.data_type.upper() for column in drug_strength.columns}
-    assert col_types["numerator_value"] == "DECIMAL(38,16)"
+    assert col_types["amount_value"] == "DOUBLE"
+    assert col_types["numerator_value"] == "DOUBLE"
+    assert col_types["denominator_value"] == "DOUBLE"
+    assert TABLE_DEFINITIONS["vocabulary"].primary_key is None
+
+
+def test_varchar_lengths_are_enforced_with_check_constraints() -> None:
+    sql = _column_sql(ColumnDefinition("value", "VARCHAR(20)", False))
+    assert sql == '"value" VARCHAR(20) NOT NULL CHECK (length("value") <= 20)'
+
+    conn = duckdb.connect(":memory:")
+    try:
+        conn.execute(f"CREATE TABLE test ({sql})")
+        conn.execute("INSERT INTO test VALUES ('12345678901234567890')")
+        with pytest.raises(duckdb.ConstraintException):
+            conn.execute("INSERT INTO test VALUES ('123456789012345678901')")
+    finally:
+        conn.close()
+
+
+def test_schema_retains_official_foreign_key_metadata() -> None:
+    expected = {
+        "concept": {
+            ("domain_id", "domain", "domain_id"),
+            ("vocabulary_id", "vocabulary", "vocabulary_id"),
+            ("concept_class_id", "concept_class", "concept_class_id"),
+        },
+        "vocabulary": {
+            ("vocabulary_concept_id", "concept", "concept_id"),
+        },
+        "domain": {("domain_concept_id", "concept", "concept_id")},
+        "concept_class": {
+            ("concept_class_concept_id", "concept", "concept_id"),
+        },
+        "concept_relationship": {
+            ("concept_id_1", "concept", "concept_id"),
+            ("concept_id_2", "concept", "concept_id"),
+            ("relationship_id", "relationship", "relationship_id"),
+        },
+        "relationship": {
+            ("relationship_concept_id", "concept", "concept_id"),
+        },
+        "concept_synonym": {
+            ("concept_id", "concept", "concept_id"),
+            ("language_concept_id", "concept", "concept_id"),
+        },
+        "concept_ancestor": {
+            ("ancestor_concept_id", "concept", "concept_id"),
+            ("descendant_concept_id", "concept", "concept_id"),
+        },
+        "source_to_concept_map": {
+            ("source_concept_id", "concept", "concept_id"),
+            ("target_concept_id", "concept", "concept_id"),
+            ("target_vocabulary_id", "vocabulary", "vocabulary_id"),
+        },
+        "drug_strength": {
+            ("drug_concept_id", "concept", "concept_id"),
+            ("ingredient_concept_id", "concept", "concept_id"),
+            ("amount_unit_concept_id", "concept", "concept_id"),
+            ("numerator_unit_concept_id", "concept", "concept_id"),
+            ("denominator_unit_concept_id", "concept", "concept_id"),
+        },
+    }
+    assert {
+        table_name: {
+            (
+                foreign_key.columns[0],
+                foreign_key.referenced_table,
+                foreign_key.referenced_columns[0],
+            )
+            for foreign_key in definition.foreign_keys
+        }
+        for table_name, definition in TABLE_DEFINITIONS.items()
+    } == expected
 
 
 def test_load_source_to_concept_map_and_drug_strength_typed_values(tmp_path: Path) -> None:
@@ -144,11 +219,11 @@ def test_load_source_to_concept_map_and_drug_strength_typed_values(tmp_path: Pat
             "FROM main.source_to_concept_map"
         ).fetchall()
         numerator_rows = conn.execute(
-            "SELECT CAST(numerator_value AS VARCHAR), typeof(numerator_value) "
+            "SELECT numerator_value, typeof(numerator_value) "
             "FROM main.drug_strength"
         ).fetchall()
     finally:
         conn.close()
 
     assert source_dates == [(dt.date(2021, 1, 31), dt.date(2099, 12, 31))]
-    assert numerator_rows == [("2340000000000000.0000000000000000", "DECIMAL(38,16)")]
+    assert numerator_rows == [(2340000000000000.0, "DOUBLE")]

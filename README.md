@@ -12,8 +12,9 @@ and skips auxiliary exports like `CONCEPT_CPT4.csv` or `README.txt` by default.
 - Streams each file into DuckDB using `read_csv` with quoting/escaping disabled,
   preventing parse failures caused by embedded quotes or backslashes, while the
   CLI shows a live progress bar per table.
-- Loads recognised vocab files into typed tables (INTEGER, DATE, VARCHAR) that
-  match the CDM DDL with primary keys already enforced (secondary indexes can be
+- Loads recognised vocab files into typed tables (INTEGER, DOUBLE, DATE,
+  VARCHAR) that match the CDM field definitions, with declared string-length
+  limits and primary keys enforced where specified (secondary indexes can be
   added later if needed).
 - Always performs row-count verification to ensure the database matches source
   files.
